@@ -8,6 +8,22 @@ from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
 os.environ["MLFLOW_USE_DEFAULT_TRACER_PROVIDER"] = "false"
 
+from mlflow.tracing.processor.otel import OtelSpanProcessor
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.trace import set_tracer_provider
+
+tracer_provider = TracerProvider()
+tracer_provider.add_span_processor(
+    OtelSpanProcessor(
+        OTLPSpanExporter(
+            endpoint=f"{os.getenv('OTEL_EXPORTER_OTLP_ENDPOINT')}/v1/traces",
+        ),
+        False,
+    )
+)
+set_tracer_provider(tracer_provider)
+
 
 # Load env vars from .env.local before importing the agent for proper auth
 load_dotenv(dotenv_path=".env.local", override=True)
