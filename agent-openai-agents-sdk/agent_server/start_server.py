@@ -4,6 +4,10 @@ import httpx
 from dotenv import load_dotenv
 from fastapi import Request, Response
 from mlflow.genai.agent_server import AgentServer, setup_mlflow_git_based_version_tracking
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+
+os.environ["MLFLOW_USE_DEFAULT_TRACER_PROVIDER"] = "false"
+
 
 # Load env vars from .env.local before importing the agent for proper auth
 load_dotenv(dotenv_path=".env.local", override=True)
@@ -14,7 +18,8 @@ import agent_server.agent  # noqa: E402
 agent_server = AgentServer("ResponsesAgent")
 # Define the app as a module level variable to enable multiple workers
 app = agent_server.app  # noqa: F841
-setup_mlflow_git_based_version_tracking()
+FastAPIInstrumentor.instrument_app(app)
+# setup_mlflow_git_based_version_tracking()
 proxy_client = httpx.AsyncClient(timeout=300.0)
 
 

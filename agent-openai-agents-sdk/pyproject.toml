@@ -14,6 +14,11 @@ dependencies = [
     "mlflow>=3.6.0",
     "openai-agents>=0.4.1",
     "python-dotenv",
+    "opentelemetry-exporter-otlp-proto-http",
+    "opentelemetry-api>=1.39.0",
+    "opentelemetry-sdk>=1.39.0",
+    "opentelemetry-instrumentation-fastapi>=0.60b0",
+    "opentelemetry-instrumentation-httpx>=0.60b0",
 ]
 
 [build-system]
