@@ -1,31 +1,65 @@
 bundle:
-  name: agent_langgraph
+  name: agent_customer_support
 
 resources:
   # MLflow experiment for agent tracing - automatically created by bundle
   experiments:
-    agent_langgraph_experiment:
+    agent_experiment:
       name: /Users/${workspace.current_user.userName}/${bundle.name}-${bundle.target}
 
   apps:
-    agent_langgraph:
-      name: "${bundle.target}-agent-langgraph"
-      description: "LangGraph agent application"
+    agent_customer_support:
+      name: "agent-customer-support"
+      description: "Customer support agent with reviews, documentation, and user preference memory"
       source_code_path: ./
 
       # Resources which this app has access to
       resources:
-        - name: 'experiment'
+        - name: "experiment"
           experiment:
-            experiment_id: "${resources.experiments.agent_langgraph_experiment.id}"
-            permission: 'CAN_MANAGE'
+            experiment_id: "${resources.experiments.agent_experiment.id}"
+            permission: "CAN_MANAGE"
+
+        # UC functions for customer support (reviews, policies)
+        - name: "query_reviews"
+          uc_securable:
+            securable_full_name: "agent_cuj.customer_support.query_reviews"
+            securable_type: "FUNCTION"
+            permission: "EXECUTE"
+        - name: "get_recent_reviews"
+          uc_securable:
+            securable_full_name: "agent_cuj.customer_support.get_recent_reviews"
+            securable_type: "FUNCTION"
+            permission: "EXECUTE"
+        - name: "list_reviews"
+          uc_securable:
+            securable_full_name: "agent_cuj.customer_support.list_reviews"
+            securable_type: "FUNCTION"
+            permission: "EXECUTE"
+        - name: "read_latest_policies"
+          uc_securable:
+            securable_full_name: "agent_cuj.customer_support.read_latest_policies"
+            securable_type: "FUNCTION"
+            permission: "EXECUTE"
+        - name: "get_latest_policy_docs"
+          uc_securable:
+            securable_full_name: "agent_cuj.customer_support.get_latest_policy_docs"
+            securable_type: "FUNCTION"
+            permission: "EXECUTE"
+
+        # Lakebase instance for long-term user preference memory
+        - name: "database"
+          database:
+            instance_name: "bbqiu"
+            database_name: "postgres"
+            permission: "CAN_CONNECT_AND_CREATE"
 
 targets:
   dev:
     mode: development
     default: true
-    # workspace:
-    #   host: https://...
+    workspace:
+      host: https://e2-dogfood.staging.cloud.databricks.com
 
   prod:
     mode: production
@@ -33,5 +67,5 @@ targets:
     #   host: https://...
     resources:
       apps:
-        agent_langgraph:
-          name: agent-langgraph
+        agent_customer_support:
+          name: agent-customer-support
