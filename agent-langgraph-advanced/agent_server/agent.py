@@ -1,11 +1,13 @@
 import logging
 import os
 from datetime import datetime
-from typing import Any, AsyncGenerator, Optional
+from typing import Any, AsyncGenerator, Optional, Sequence, TypedDict
 
+import litellm
 import mlflow
 from databricks.sdk import WorkspaceClient
 from databricks_langchain import (
+    AsyncCheckpointSaver,
     AsyncDatabricksStore,
     ChatDatabricks,
     DatabricksMCPServer,
@@ -13,7 +15,9 @@ from databricks_langchain import (
 )
 from fastapi import HTTPException
 from langchain.agents import create_agent
+from langchain_core.messages import AnyMessage
 from langchain_core.tools import tool
+from langgraph.graph.message import add_messages
 from langgraph.store.base import BaseStore
 from mlflow.genai.agent_server import invoke, stream
 from mlflow.types.responses import (
@@ -22,24 +26,24 @@ from mlflow.types.responses import (
     ResponsesAgentStreamEvent,
     to_chat_completions_input,
 )
+from typing_extensions import Annotated
 
 from agent_server.utils import (
+    _get_lakebase_access_error_message,
+    _get_or_create_thread_id,
     get_databricks_host_from_env,
-    get_session_id,
-    get_user_workspace_client,
     process_agent_astream_events,
 )
 from agent_server.utils_memory import (
-    get_lakebase_access_error_message,
     get_user_id,
     memory_tools,
     resolve_lakebase_instance_name,
 )
 
 logger = logging.getLogger(__name__)
-logging.getLogger("mlflow.utils.autologging_utils").setLevel(logging.ERROR)
-logging.getLogger("LiteLLM").setLevel(logging.WARNING)
 mlflow.langchain.autolog()
+logging.getLogger("mlflow.utils.autologging_utils").setLevel(logging.ERROR)
+litellm.suppress_debug_info = True
 sp_workspace_client = WorkspaceClient()
 
 
@@ -58,8 +62,6 @@ EMBEDDING_ENDPOINT = "databricks-gte-large-en"
 EMBEDDING_DIMS = 1024
 LAKEBASE_AUTOSCALING_PROJECT = os.getenv("LAKEBASE_AUTOSCALING_PROJECT") or None
 LAKEBASE_AUTOSCALING_BRANCH = os.getenv("LAKEBASE_AUTOSCALING_BRANCH") or None
-
-############################################
 
 _has_autoscaling = LAKEBASE_AUTOSCALING_PROJECT and LAKEBASE_AUTOSCALING_BRANCH
 if not _LAKEBASE_INSTANCE_NAME_RAW and not _has_autoscaling:
@@ -103,6 +105,12 @@ religion, criminal history) — unless the user explicitly asks you to store it
 - Information that could feel intrusive or overly personal to store"""
 
 
+class StatefulAgentState(TypedDict, total=False):
+    messages: Annotated[Sequence[AnyMessage], add_messages]
+    custom_inputs: dict[str, Any]
+    custom_outputs: dict[str, Any]
+
+
 def init_mcp_client(workspace_client: WorkspaceClient) -> DatabricksMultiServerMCPClient:
     host_name = get_databricks_host_from_env()
     return DatabricksMultiServerMCPClient(
@@ -116,25 +124,37 @@ def init_mcp_client(workspace_client: WorkspaceClient) -> DatabricksMultiServerM
     )
 
 
-async def init_agent(store: BaseStore, workspace_client: Optional[WorkspaceClient] = None):
+async def init_agent(
+    store: BaseStore,
+    workspace_client: Optional[WorkspaceClient] = None,
+    checkpointer: Optional[Any] = None,
+):
     tools = [get_current_time] + memory_tools()
-    # To use MCP server tools instead, replace the line above with:
+    # To use MCP server tools instead, uncomment the below lines:
     # mcp_client = init_mcp_client(workspace_client or sp_workspace_client)
     # try:
     #     tools.extend(await mcp_client.get_tools())
     # except Exception:
     #     logger.warning("Failed to fetch MCP tools. Continuing without MCP tools.", exc_info=True)
 
+    model = ChatDatabricks(endpoint=LLM_ENDPOINT_NAME)
+
     return create_agent(
-        model=ChatDatabricks(endpoint=LLM_ENDPOINT_NAME),
+        model=model,
         tools=tools,
         system_prompt=SYSTEM_PROMPT,
+        checkpointer=checkpointer,
         store=store,
+        state_schema=StatefulAgentState,
     )
 
 
 @invoke()
 async def invoke_handler(request: ResponsesAgentRequest) -> ResponsesAgentResponse:
+    thread_id = _get_or_create_thread_id(request)
+    request.custom_inputs = dict(request.custom_inputs or {})
+    request.custom_inputs["thread_id"] = thread_id
+
     outputs = [
         event.item
         async for event in stream_handler(request)
@@ -142,7 +162,9 @@ async def invoke_handler(request: ResponsesAgentRequest) -> ResponsesAgentRespon
     ]
 
     user_id = get_user_id(request)
-    custom_outputs = {"user_id": user_id} if user_id else None
+    custom_outputs: dict[str, Any] = {"thread_id": thread_id}
+    if user_id:
+        custom_outputs["user_id"] = user_id
     return ResponsesAgentResponse(output=outputs, custom_outputs=custom_outputs)
 
 
@@ -150,36 +172,49 @@ async def invoke_handler(request: ResponsesAgentRequest) -> ResponsesAgentRespon
 async def stream_handler(
     request: ResponsesAgentRequest,
 ) -> AsyncGenerator[ResponsesAgentStreamEvent, None]:
-    if session_id := get_session_id(request):
-        mlflow.update_current_trace(metadata={"mlflow.trace.session": session_id})
+    thread_id = _get_or_create_thread_id(request)
+    mlflow.update_current_trace(metadata={"mlflow.trace.session": thread_id})
 
     user_id = get_user_id(request)
-
     if not user_id:
         logger.warning("No user_id provided - memory features will not be available")
 
-    messages: dict[str, Any] = {
-        "messages": to_chat_completions_input([i.model_dump() for i in request.input])
+    config: dict[str, Any] = {"configurable": {"thread_id": thread_id}}
+    if user_id:
+        config["configurable"]["user_id"] = user_id
+
+    input_state: dict[str, Any] = {
+        "messages": to_chat_completions_input([i.model_dump() for i in request.input]),
+        "custom_inputs": dict(request.custom_inputs or {}),
     }
 
     try:
-        async with AsyncDatabricksStore(
+        async with AsyncCheckpointSaver(
+            instance_name=LAKEBASE_INSTANCE_NAME,
+            project=LAKEBASE_AUTOSCALING_PROJECT,
+            branch=LAKEBASE_AUTOSCALING_BRANCH,
+        ) as checkpointer, AsyncDatabricksStore(
             instance_name=LAKEBASE_INSTANCE_NAME,
             project=LAKEBASE_AUTOSCALING_PROJECT,
             branch=LAKEBASE_AUTOSCALING_BRANCH,
             embedding_endpoint=EMBEDDING_ENDPOINT,
             embedding_dims=EMBEDDING_DIMS,
         ) as store:
+            await checkpointer.setup()
             await store.setup()
-            config: dict[str, Any] = {"configurable": {"store": store}}
-            if user_id:
-                config["configurable"]["user_id"] = user_id
 
-            # By default, uses service principal credentials (sp_workspace_client).
-            # For on-behalf-of user authentication, use get_user_workspace_client() instead.
-            agent = await init_agent(workspace_client=sp_workspace_client, store=store)
+            config["configurable"]["store"] = store
+
+            # By default, uses service principal credentials.
+            # For on-behalf-of user authentication, pass get_user_workspace_client() to init_agent.
+            agent = await init_agent(store=store, checkpointer=checkpointer)
+
             async for event in process_agent_astream_events(
-                agent.astream(messages, config, stream_mode=["updates", "messages"])
+                agent.astream(
+                    input_state,
+                    config,
+                    stream_mode=["updates", "messages"],
+                )
             ):
                 yield event
     except Exception as e:
@@ -189,6 +224,6 @@ async def stream_handler(
             logger.error(f"Lakebase access error: {e}")
             lakebase_desc = LAKEBASE_INSTANCE_NAME or f"{LAKEBASE_AUTOSCALING_PROJECT}/{LAKEBASE_AUTOSCALING_BRANCH}"
             raise HTTPException(
-                status_code=503, detail=get_lakebase_access_error_message(lakebase_desc)
+                status_code=503, detail=_get_lakebase_access_error_message(lakebase_desc)
             ) from e
         raise

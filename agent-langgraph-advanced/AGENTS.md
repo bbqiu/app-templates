@@ -65,11 +65,15 @@ Use `uv run discover-tools` to show them available resources in their workspace,
 
 ## Memory Template Note
 
-This template includes **long-term memory** (facts that persist across conversation sessions). The agent can remember user preferences and information across multiple interactions.
+This template includes both **short-term memory** (conversation history within a session) and **long-term memory** (facts that persist across conversation sessions).
+
+- **Short-term memory** uses `AsyncCheckpointSaver` to maintain conversation history within a thread. The agent remembers what was said earlier in the same conversation.
+- **Long-term memory** uses `AsyncDatabricksStore` with memory tools to persist user preferences and information across multiple interactions.
 
 **Required setup:**
 1. Configure Lakebase — follow the `AskUserQuestion` flow in MANDATORY First Actions above to determine provisioned vs autoscaling and pass the right flags to quickstart
-2. Use `user_id` in requests to scope memories per user (see **agent-memory** skill)
+2. Use `thread_id` in requests to maintain conversation context (see **agent-memory** skill)
+3. Use `user_id` in requests to scope long-term memories per user (see **agent-memory** skill)
 
 ## Handling Deployment Errors
 
@@ -124,7 +128,7 @@ After installation, the skills will be available as slash commands (e.g., `/agen
 | Setup | `uv run quickstart` |
 | Discover tools | `uv run discover-tools` |
 | Run locally | `uv run start-app` |
-| Deploy | `databricks bundle deploy && databricks bundle run agent_langgraph_long_term_memory` |
+| Deploy | `databricks bundle deploy && databricks bundle run agent_langgraph_advanced` |
 | View logs | `databricks apps logs <app-name> --follow` |
 
 ---
@@ -133,7 +137,8 @@ After installation, the skills will be available as slash commands (e.g., `/agen
 
 | File | Purpose |
 |------|---------|
-| `agent_server/agent.py` | Agent logic, model, instructions, MCP servers, memory tools |
+| `agent_server/agent.py` | Agent logic, model, instructions, MCP servers, memory setup |
+| `agent_server/utils_memory.py` | Long-term memory tools (get, save, delete) |
 | `agent_server/start_server.py` | FastAPI server + MLflow setup |
 | `agent_server/evaluate_agent.py` | Agent evaluation with MLflow scorers |
 | `databricks.yml` | Bundle config & resource permissions |

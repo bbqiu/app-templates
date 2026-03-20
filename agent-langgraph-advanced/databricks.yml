@@ -1,11 +1,11 @@
 bundle:
-  name: agent_langgraph_long_term_memory
+  name: agent_langgraph_advanced
 
 resources:
   apps:
-    agent_langgraph_long_term_memory:
-      name: "agent-langgraph-ltm"
-      description: "LangGraph agent application with long-term memory"
+    agent_langgraph_advanced:
+      name: "agent-langgraph-advanced"
+      description: "LangGraph agent application with short-term and long-term memory"
       source_code_path: ./
       config:
         command: ["uv", "run", "start-app"]
@@ -33,19 +33,19 @@ resources:
 
       # Resources which this app has access to
       resources:
-        - name: "experiment"
+        - name: 'experiment'
           experiment:
             experiment_id: ""
-            permission: "CAN_MANAGE"
+            permission: 'CAN_MANAGE'
         # Autoscaling postgres resource must be added via API after deploy
         # See: .claude/skills/add-tools/examples/lakebase-autoscaling.md
         #
         # Use for provisioned lakebase resource
-        # - name: "database"
+        # - name: 'database'
         #   database:
-        #     instance_name: "<your-lakebase-instance-name>"
-        #     database_name: "databricks_postgres"
-        #     permission: "CAN_CONNECT_AND_CREATE"
+        #     instance_name: '<your-lakebase-instance-name>'
+        #     database_name: 'databricks_postgres'
+        #     permission: 'CAN_CONNECT_AND_CREATE'
 
 targets:
   dev:
@@ -60,5 +60,5 @@ targets:
     #   host: https://...
     resources:
       apps:
-        agent_langgraph_long_term_memory:
-          name: agent-langgraph-ltm
+        agent_langgraph_advanced:
+          name: agent-langgraph-advanced
