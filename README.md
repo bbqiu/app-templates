@@ -23,8 +23,7 @@ See [Create an App from a Template](https://docs.databricks.com/aws/en/dev-tools
 |----------|-------------|--------------|
 | `agent-openai-agents-sdk` | A conversational agent backend and UI using OpenAI Agents SDK and MLflow AgentServer | MLflow experiment |
 | `agent-langgraph` | A conversational agent backend and UI using LangGraph and MLflow AgentServer | MLflow experiment |
-| `agent-langgraph-short-term-memory` | LangGraph agent with conversation history | MLflow experiment, Database |
-| `agent-langgraph-long-term-memory` | LangGraph agent with persistent user memory | MLflow experiment, Database |
+| `agent-langgraph-advanced` | LangGraph agent with short-term and long-term memory | MLflow experiment, Database |
 | `agent-non-conversational` | A non-conversational GenAI agent that processes structured questions and provides answers with detailed reasoning | MLflow experiment |
 | `e2e-chatbot-app-next` | A chat UI that queries a remote agent endpoint or foundation model | Serving endpoint |
 | `mcp-server-hello-world` | A basic MCP server | None |

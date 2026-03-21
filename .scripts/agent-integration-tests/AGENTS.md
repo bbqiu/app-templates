@@ -7,8 +7,7 @@ End-to-end tests that validate every agent template works correctly both locally
 | Template | Conversational | Memory | Special Config |
 |---|---|---|---|
 | `agent-langgraph` | Yes | None | — |
-| `agent-langgraph-short-term-memory` | Yes | Lakebase | Lakebase placeholder in `databricks.yml` |
-| `agent-langgraph-long-term-memory` | Yes | Lakebase | Lakebase placeholder in `databricks.yml` |
+| `agent-langgraph-advanced` | Yes | Lakebase | Lakebase placeholder in `databricks.yml` |
 | `agent-openai-agents-sdk` | Yes | None | — |
 | `agent-openai-agents-sdk-short-term-memory` | Yes | Lakebase | Lakebase placeholder in `databricks.yml` |
 | `agent-openai-agents-sdk-multiagent` | Yes | None | Uncomments SUBAGENTS in `agent_server/agent.py` (enables genie + serving_endpoint subagents), replaces placeholders in `databricks.yml` (Genie space ID, serving endpoint) |
@@ -70,7 +69,7 @@ Local and deploy phases run **in parallel** via `ThreadPoolExecutor`. Either pha
 |-- conftest.py          # Pytest config: CLI options, fixtures (repo_root, profile, lakebase)
 |-- helpers.py           # Subprocess runners, server lifecycle, endpoint queries, deploy/destroy, OAuth, lakebase grants, file edits
 |-- lakebase_inspect.py  # Standalone utility to inspect a Lakebase instance (schemas, rows, permissions)
-|-- template_config.py   # TemplateConfig/FileEdit dataclasses, databricks.yml parser, 7 template definitions, REPO_ROOT
+|-- template_config.py   # TemplateConfig/FileEdit dataclasses, databricks.yml parser, 6 template definitions, REPO_ROOT
 |-- test_e2e.py          # Single test_e2e() parametrized across templates; orchestrates setup/local/deploy/cleanup phases
 |-- logs/                # Runtime directory: per-template log files ({template.name}.log)
 +-- pyproject.toml       # Dependencies (pytest, pytest-xdist, openai, requests, databricks-sdk, databricks-ai-bridge[memory])
@@ -97,17 +96,17 @@ All commands must be run from the `.scripts/agent-integration-tests/` directory.
 ```bash
 cd .scripts/agent-integration-tests
 
-# DEFAULT: Run all 7 templates in parallel (local + deploy)
-uv run pytest test_e2e.py -v -n 7
+# DEFAULT: Run all 6 templates in parallel (local + deploy)
+uv run pytest test_e2e.py -v -n 6
 
 # Single template (still runs both local + deploy)
 uv run pytest test_e2e.py -v --template agent-langgraph
 
 # Local only — ONLY when explicitly requested
-uv run pytest test_e2e.py -v -n 7 --skip-deploy
+uv run pytest test_e2e.py -v -n 6 --skip-deploy
 
 # Deploy only — ONLY when explicitly requested
-uv run pytest test_e2e.py -v -n 7 --skip-local
+uv run pytest test_e2e.py -v -n 6 --skip-local
 
 # Sequential with full live output (for debugging)
 uv run pytest test_e2e.py -v -n0 -s
@@ -116,10 +115,10 @@ uv run pytest test_e2e.py -v -n0 -s
 uv run pytest test_e2e.py -v --template agent-langgraph --skip-local --no-destroy
 
 # Custom profile and provisioned lakebase
-uv run pytest test_e2e.py -v -n 7 --profile staging --lakebase my-instance
+uv run pytest test_e2e.py -v -n 6 --profile staging --lakebase my-instance
 
 # Custom profile and autoscaling lakebase
-uv run pytest test_e2e.py -v -n 7 --profile staging --lakebase-project my-project --lakebase-branch production
+uv run pytest test_e2e.py -v -n 6 --profile staging --lakebase-project my-project --lakebase-branch production
 
 # Multiagent with custom Genie space and endpoint
 uv run pytest test_e2e.py -v --template agent-openai-agents-sdk-multiagent \

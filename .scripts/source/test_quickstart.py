@@ -54,7 +54,7 @@ targets:
     mode: development
 """
 
-# A databricks.yml with lakebase env vars (like agent-langgraph-short-term-memory)
+# A databricks.yml with lakebase env vars (like agent-langgraph-advanced)
 # Default state: autoscaling active, provisioned commented out
 LAKEBASE_YML = """\
 bundle:
@@ -101,7 +101,7 @@ targets:
     mode: development
 """
 
-# Double-quoted variant (like agent-langgraph-long-term-memory)
+# Double-quoted variant (like agent-langgraph-advanced with double quotes)
 DOUBLE_QUOTED_YML = """\
 bundle:
   name: agent_langgraph_long_term_memory
@@ -199,8 +199,7 @@ class TestUpdateDatabricksYmlExperiment:
         repo_root = Path(__file__).resolve().parents[1]
         templates_with_experiment = [
             "agent-langgraph",
-            "agent-langgraph-short-term-memory",
-            "agent-langgraph-long-term-memory",
+            "agent-langgraph-advanced",
             "agent-openai-agents-sdk",
             "agent-openai-agents-sdk-short-term-memory",
             "agent-openai-agents-sdk-multiagent",
@@ -439,8 +438,7 @@ class TestReplaceLakebaseResource:
         """Verify resource replacement works on actual template databricks.yml files."""
         repo_root = Path(__file__).resolve().parents[1]
         memory_templates = [
-            "agent-langgraph-short-term-memory",
-            "agent-langgraph-long-term-memory",
+            "agent-langgraph-advanced",
             "agent-openai-agents-sdk-short-term-memory",
         ]
         for template_name in memory_templates:
@@ -503,8 +501,7 @@ class TestUpdateDatabricksYmlLakebase:
         """Verify lakebase replacement works on actual template databricks.yml files."""
         repo_root = Path(__file__).resolve().parents[1]
         memory_templates = [
-            "agent-langgraph-short-term-memory",
-            "agent-langgraph-long-term-memory",
+            "agent-langgraph-advanced",
             "agent-openai-agents-sdk-short-term-memory",
         ]
         for template_name in memory_templates:

@@ -140,11 +140,10 @@ def build_templates(
 ) -> list[TemplateConfig]:
     configs: list[tuple[str, dict]] = [
         ("agent-langgraph", {}),
-        ("agent-langgraph-short-term-memory", {"needs_lakebase_edit": True}),
-        ("agent-langgraph-long-term-memory", {"needs_lakebase_edit": True}),
+        ("agent-langgraph-advanced", {"needs_lakebase_edit": True}),
         ("agent-openai-agents-sdk", {}),
         (
-            "agent-openai-agents-sdk-short-term-memory",
+            "agent-openai-agents-advanced",
             {"needs_lakebase_edit": True},
         ),
         (
