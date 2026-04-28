@@ -105,6 +105,18 @@ uv run pytest test_e2e.py -v -n0 -s --template agent-langgraph
 
 Template test configs are in `.scripts/agent-integration-tests/template_config.py`.
 
+### Testing against an upstream dependency branch
+
+To exercise a template against an in-flight branch of `mlflow`, `databricks-ai-bridge`, or one of its integrations, replace the dep in `pyproject.toml` with a direct URL pinned to a **commit SHA** (uv caches branch refs and may serve stale revisions), `uv sync`, run e2e tests, then revert before merging.
+
+```toml
+dependencies = [
+    "databricks-openai @ git+https://github.com/databricks/databricks-ai-bridge.git@<sha>#subdirectory=integrations/openai",
+]
+[tool.hatch.metadata]
+allow-direct-references = true  # required by hatchling for direct URLs
+```
+
 ## Editing Workflow Summary
 
 1. **Changing a shared script** (`quickstart.py`, `start_app.py`, `evaluate_agent.py`) — edit in `.scripts/source/`, run `uv run python .scripts/sync-scripts.py`
