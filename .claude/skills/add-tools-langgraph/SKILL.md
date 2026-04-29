@@ -100,6 +100,56 @@ env:
 
 **Critical:** Every `value_from` value must match a `name` field in `databricks.yml` resources.
 
+## OBO (Per-User Authorization)
+
+By default, tool calls run as the app's service principal. To run them as the requesting user — so each user only sees data they personally have access to — declare the required scopes in `databricks.yml` and pass the user-scoped `WorkspaceClient` into each MCP server (or direct SDK client). **Do not configure scopes through the Databricks UI** — `user_api_scopes` in the DAB is the supported, deterministic path.
+
+**Step 1:** declare scopes on the app resource in `databricks.yml`:
+
+```yaml
+resources:
+  apps:
+    {{BUNDLE_NAME}}:
+      user_api_scopes:
+        - mcp.genie                         # Genie via MCP
+        - vectorsearch.vector-search-indexes # direct vector-search SDK
+        # add one entry per tool category you call OBO
+```
+
+**Step 2:** in `agent_server/agent.py`, swap the SP `WorkspaceClient()` for `get_user_workspace_client()` *inside* the `@invoke`/`@stream` handler (not at module load — the user token is per-request):
+
+```python
+from agent_server.utils import get_user_workspace_client
+from databricks_langchain import DatabricksMCPServer, DatabricksMultiServerMCPClient
+
+@invoke()
+async def invoke_handler(request):
+    user_wc = get_user_workspace_client()  # per-request, never at startup
+    genie_server = DatabricksMCPServer(
+        url=f"{user_wc.config.host}/api/2.0/mcp/genie/<space-id>",
+        name="genie",
+        workspace_client=user_wc,
+    )
+    mcp_client = DatabricksMultiServerMCPClient([genie_server])
+    tools = await mcp_client.get_tools()
+    # ... build agent with `tools`
+```
+
+**Scope reference** (from `apps/commons/src/conf/AppsCommonConf.scala`). Pick the row for the path you actually use — MCP routes use `mcp.*`; direct SDK calls use the resource-specific scope:
+
+| Tool | MCP scope | Direct-SDK scope |
+|---|---|---|
+| Genie space | `mcp.genie` | `dashboards.genie` |
+| UC function | `mcp.functions` | n/a |
+| Vector Search | `mcp.vectorsearch` | `vectorsearch.vector-search-indexes` |
+| UC connection | `mcp.external` | `catalog.connections` |
+| Custom MCP server (App-hosted or external) | `apps` | n/a |
+| Databricks App | `apps` | `apps` |
+| Model serving endpoint | n/a | `serving.serving-endpoints` |
+| SQL warehouse | n/a | `sql.warehouses` |
+
+See: [Databricks Apps user authorization](https://docs.databricks.com/aws/en/generative-ai/agent-framework/agent-authentication?language=Declarative+Automation+Bundles#implement-user-authorization).
+
 ## MCP Error Handling
 
 MCP tool calls can fail (network issues, permission errors, timeouts). Use `handle_tool_error` on MCP servers to catch errors and return them to the LLM instead of crashing the agent:

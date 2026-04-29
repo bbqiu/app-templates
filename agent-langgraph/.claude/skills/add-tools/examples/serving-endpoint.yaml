@@ -1,5 +1,6 @@
 # Model Serving Endpoint
 # Use for: Model inference endpoints
+# OBO scope (per-user authorization): serving.serving-endpoints — see SKILL.md "OBO" section.
 
 - name: 'my_endpoint'
   serving_endpoint:

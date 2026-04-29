@@ -1,6 +1,7 @@
 # Vector Search Index
 # Use for: RAG applications with unstructured data
 # MCP URL: {host}/api/2.0/mcp/vector-search/{catalog}/{schema}/{index_name}
+# OBO scope (per-user authorization): mcp.vectorsearch (MCP path) or vectorsearch.vector-search-indexes (direct SDK). See SKILL.md "OBO" section.
 
 - name: 'my_vector_index'
   uc_securable:

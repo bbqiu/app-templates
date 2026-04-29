@@ -52,3 +52,15 @@ The bundle grants `CAN_USE` on the target app automatically — no manual permis
 - Requires CLI v0.298.0+ (earlier versions will warn `unknown field: name` on `app.name`)
 - The only supported permission is `CAN_USE`
 - Subsequent `databricks bundle deploy` commands preserve the `app` resource
+
+## OBO (per-user authorization)
+
+To call this MCP server as the requesting user instead of the app's service principal, declare the `apps` scope on the host app and pass the user-scoped `WorkspaceClient` into `McpServer`. See the **OBO** section in `SKILL.md` for the full pattern.
+
+```yaml
+resources:
+  apps:
+    agent_openai_agents_sdk:
+      user_api_scopes:
+        - apps
+```

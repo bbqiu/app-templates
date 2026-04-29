@@ -1,6 +1,7 @@
 # Unity Catalog Function
 # Use for: UC functions accessed via MCP server
 # MCP URL: {host}/api/2.0/mcp/functions/{catalog}/{schema}/{function_name}
+# OBO scope (per-user authorization): mcp.functions — see SKILL.md "OBO" section.
 
 - name: 'my_uc_function'
   uc_securable:

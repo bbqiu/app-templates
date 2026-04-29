@@ -3,6 +3,7 @@
 # Requires: CLI v0.298.0+
 
 # In databricks.yml - add to resources.apps.<app>.resources:
+# OBO scope (per-user authorization): apps — see SKILL.md "OBO" section.
 - name: 'mcp_server'
   app:
     name: '<target-app-name>'

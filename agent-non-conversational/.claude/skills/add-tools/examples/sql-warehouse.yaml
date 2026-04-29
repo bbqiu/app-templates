@@ -1,5 +1,6 @@
 # SQL Warehouse
 # Use for: SQL query execution
+# OBO scope (per-user authorization): sql.warehouses — see SKILL.md "OBO" section.
 
 - name: 'my_warehouse'
   sql_warehouse:

@@ -1,6 +1,17 @@
 # Genie Space
 # Use for: Natural language interface to data
 # MCP URL: {host}/api/2.0/mcp/genie/{space_id}
+# OBO scope (per-user authorization): mcp.genie (MCP path) or dashboards.genie (direct SDK).
+# See SKILL.md "OBO" section.
+
+# SP-mode caveat: when this server runs as the app's service principal, CAN_RUN
+# on the Genie space is necessary but NOT sufficient. The SP must also have
+# USAGE on the catalog and schema, and SELECT on every underlying table the
+# Genie space queries. Find them in the Genie space settings → Datasets, then:
+#   GRANT USAGE ON SCHEMA <catalog>.<schema> TO `<sp-application-id>`;
+#   GRANT SELECT ON TABLE <catalog>.<schema>.<table> TO `<sp-application-id>`;
+# In OBO mode (mcp.genie scope), the user's existing UC grants apply — no extra
+# SQL needed.
 
 - name: 'my_genie_space'
   genie_space:

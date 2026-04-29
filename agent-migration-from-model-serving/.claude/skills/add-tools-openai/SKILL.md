@@ -80,6 +80,54 @@ resources:
 
 See `examples/custom-mcp-server.md` for the full flow (agent code + YAML + deploy).
 
+## OBO (Per-User Authorization)
+
+By default, MCP tool calls run as the app's service principal. To run them as the requesting user instead — so each user only sees data they personally have access to — declare the required scopes in `databricks.yml` and pass the user-scoped `WorkspaceClient` into each `McpServer`. **Do not configure scopes through the Databricks UI** — `user_api_scopes` in the DAB is the supported, deterministic path.
+
+**Step 1:** declare scopes on the app resource in `databricks.yml`:
+
+```yaml
+resources:
+  apps:
+    agent_migration:
+      user_api_scopes:
+        - mcp.genie         # for Genie MCP routes
+        - mcp.functions     # for UC function MCP routes
+        # add one entry per tool category you call OBO
+```
+
+**Step 2:** in `agent_server/agent.py`, swap the SP `WorkspaceClient()` for `get_user_workspace_client()` *inside* the `@invoke`/`@stream` handler (not at module load — the user token is per-request):
+
+```python
+from agent_server.utils import get_user_workspace_client
+from databricks_openai.agents import McpServer
+
+@invoke()
+async def invoke_handler(request):
+    user_wc = get_user_workspace_client()  # per-request, never at startup
+    genie_server = McpServer(
+        url=f"{user_wc.config.host}/api/2.0/mcp/genie/<space-id>",
+        name="genie",
+        workspace_client=user_wc,
+    )
+    # ... agent setup using [genie_server]
+```
+
+**Scope reference** (from `apps/commons/src/conf/AppsCommonConf.scala`):
+
+| Tool | OBO scope |
+|---|---|
+| Genie space (MCP) | `mcp.genie` |
+| UC function (MCP) | `mcp.functions` |
+| Vector Search (MCP) | `mcp.vectorsearch` |
+| UC connection (MCP) | `mcp.external` |
+| Custom MCP server (App-hosted or external) | `apps` |
+| Databricks App | `apps` |
+| Model serving endpoint (direct SDK) | `serving.serving-endpoints` |
+| SQL warehouse (direct SDK) | `sql.warehouses` |
+
+See: [Databricks Apps user authorization](https://docs.databricks.com/aws/en/generative-ai/agent-framework/agent-authentication?language=Declarative+Automation+Bundles#implement-user-authorization).
+
 ## MCP Error Handling
 
 MCP tool calls can fail (network issues, permission errors, timeouts). The OpenAI Agents SDK catches tool errors by default and returns the error message to the LLM. To customize timeout behavior for MCP servers:
