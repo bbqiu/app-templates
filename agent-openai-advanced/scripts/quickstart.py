@@ -5,8 +5,9 @@ Quickstart setup script for Databricks agent development.
 NOTE: Keep this comment up to date when editing the script.
 
 Steps:
-  1. Check prerequisites — uv, Node.js (>=20.19/22.12/23), npm, Databricks CLI.
-     Exit if any are missing or Node version is unsupported by Vite.
+  1. Check prerequisites — uv, Node.js (>=20.19/22.12/23), npm, Databricks CLI (>=0.298).
+     Exit if any are missing, Node version is unsupported by Vite, or the
+     Databricks CLI is below the minimum version.
   2. Set up .env — copy .env.example → .env (or create a minimal one).
   3. Databricks auth — use --profile if provided, otherwise list existing profiles
      for interactive selection, or create a new DEFAULT profile with --host / prompt.
@@ -253,6 +254,45 @@ def check_node_version() -> str | None:
         f"Node.js {version_str} is not supported by Vite.\n"
         "  Vite requires Node.js 20.19+, 22.12+, or 23+.\n"
         "  Run: nvm install 22"
+    )
+
+
+# Bumping this floor: 0.298 ships Terraform with current signing keys; older
+# CLIs (e.g. 0.270) fail bundle deploy with "openpgp: key expired".
+MIN_DATABRICKS_CLI_VERSION = (0, 298, 0)
+
+
+def check_databricks_cli_version() -> str | None:
+    """Check the installed Databricks CLI is at or above MIN_DATABRICKS_CLI_VERSION.
+
+    Returns None if the version is OK, or an error string if not.
+    """
+    if not command_exists("databricks"):
+        return None  # Missing CLI is handled by check_missing_prerequisites
+
+    try:
+        version_str = get_command_output(["databricks", "--version"])
+    except Exception:
+        return None
+
+    match = re.search(r"v(\d+)\.(\d+)\.(\d+)", version_str)
+    if not match:
+        return None
+
+    found = (int(match.group(1)), int(match.group(2)), int(match.group(3)))
+    if found >= MIN_DATABRICKS_CLI_VERSION:
+        return None
+
+    min_str = ".".join(str(p) for p in MIN_DATABRICKS_CLI_VERSION)
+    upgrade_cmd = (
+        "brew upgrade databricks"
+        if platform.system() == "Darwin"
+        else "curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh"
+    )
+    return (
+        f"Databricks CLI {version_str} is too old (requires v{min_str}+).\n"
+        f"  Older CLIs hit Terraform 'openpgp: key expired' on bundle deploy.\n"
+        f"  Upgrade with: {upgrade_cmd}"
     )
 
 
@@ -1549,6 +1589,12 @@ Examples:
         node_error = check_node_version()
         if node_error:
             print_error(f"Node.js version check failed:\n  {node_error}")
+            sys.exit(1)
+
+        # Check Databricks CLI version meets the minimum required for bundle deploy
+        cli_error = check_databricks_cli_version()
+        if cli_error:
+            print_error(f"Databricks CLI version check failed:\n  {cli_error}")
             sys.exit(1)
 
         # Step 2: Set up .env

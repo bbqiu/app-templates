@@ -18,8 +18,10 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from quickstart import (
+    MIN_DATABRICKS_CLI_VERSION,
     _replace_lakebase_env_vars,
     _replace_lakebase_resource,
+    check_databricks_cli_version,
     create_mlflow_experiment,
     get_databricks_yml_experiment_id,
     get_existing_lakebase_config,
@@ -1344,3 +1346,42 @@ class TestRequiredEnvVarsContract:
             self._assert_env_has_vars(
                 tdir, REQUIRED_ENV_VARS_PROVISIONED, template_name, "app-bind provisioned"
             )
+
+
+class TestCheckDatabricksCliVersion:
+    def test_passes_when_at_floor(self):
+        floor = ".".join(str(p) for p in MIN_DATABRICKS_CLI_VERSION)
+        with patch("quickstart.command_exists", return_value=True), patch(
+            "quickstart.get_command_output", return_value=f"Databricks CLI v{floor}"
+        ):
+            assert check_databricks_cli_version() is None
+
+    def test_passes_when_above_floor(self):
+        with patch("quickstart.command_exists", return_value=True), patch(
+            "quickstart.get_command_output", return_value="Databricks CLI v0.999.0"
+        ):
+            assert check_databricks_cli_version() is None
+
+    def test_fails_when_below_floor(self):
+        with patch("quickstart.command_exists", return_value=True), patch(
+            "quickstart.get_command_output", return_value="Databricks CLI v0.270.0"
+        ):
+            err = check_databricks_cli_version()
+        assert err is not None
+        assert "v0.270.0" in err
+        floor = ".".join(str(p) for p in MIN_DATABRICKS_CLI_VERSION)
+        assert floor in err
+        # Mentions an upgrade path
+        assert "upgrade" in err.lower() or "install" in err.lower()
+
+    def test_returns_none_when_cli_missing(self):
+        # check_missing_prerequisites handles a missing CLI; the version
+        # check must not double-error.
+        with patch("quickstart.command_exists", return_value=False):
+            assert check_databricks_cli_version() is None
+
+    def test_returns_none_when_version_unparseable(self):
+        with patch("quickstart.command_exists", return_value=True), patch(
+            "quickstart.get_command_output", return_value="some unrelated banner"
+        ):
+            assert check_databricks_cli_version() is None
