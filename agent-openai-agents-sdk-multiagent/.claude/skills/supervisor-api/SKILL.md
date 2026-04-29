@@ -17,7 +17,7 @@ Use the Supervisor API when you want to:
 **Limitations:**
 - Cannot mix hosted tools with client-side function tools in the same request
 - Inference parameters (e.g., `temperature`, `top_p`) are not supported when tools are passed
-- Scoped token access (OBO) is not supported — tools run as the app's service principal; grant tool permissions in `databricks.yml`
+- Scoped token access (OBO) is not supported **for hosted tools called via the Supervisor API** — they run as the app's service principal; grant tool permissions in `databricks.yml`. (OBO is fully supported for tools called from a client-side agent loop — see the `add-tools-openai` / `add-tools-langgraph` skills and the `user_api_scopes` block.)
 - `stream` and `background` cannot both be `true` in the same request
 - Background mode requests have a maximum execution time of 30 minutes
 
