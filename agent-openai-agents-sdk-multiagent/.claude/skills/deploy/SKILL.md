@@ -164,17 +164,30 @@ curl -X POST <app-url>/invocations \
 
 ## On-Behalf-Of (OBO) User Authentication
 
-To authenticate as the requesting user instead of the app service principal:
+To authenticate as the requesting user instead of the app service principal, declare the required scopes on the app resource in `databricks.yml` so the user token gets issued at request time:
+
+```yaml
+resources:
+  apps:
+    agent_openai_agents_sdk_multiagent:
+      user_api_scopes:
+        - mcp.genie         # one entry per tool category you call OBO
+        - mcp.functions
+```
+
+Then call `get_user_workspace_client()` *inside* the `@invoke`/`@stream` handler (the user token is per-request, never at module load):
 
 ```python
 from agent_server.utils import get_user_workspace_client
 
-# In your agent code
+# In your agent code, inside the handler:
 user_client = get_user_workspace_client()
 # Use user_client for operations that should run as the user
 ```
 
 This is useful when you want the agent to access resources with the user's permissions rather than the app's service principal permissions.
+
+For the per-tool scope table (Genie, UC functions, vector search, custom MCP, direct-SDK calls, etc.), see the OBO sections in `add-tools-openai/SKILL.md` and `add-tools-langgraph/SKILL.md`.
 
 See: [OBO authentication documentation](https://docs.databricks.com/aws/en/dev-tools/databricks-apps/auth#retrieve-user-authorization-credentials)
 

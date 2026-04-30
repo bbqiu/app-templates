@@ -143,7 +143,8 @@ async def invoke_handler(request):
 | UC function | `mcp.functions` | n/a |
 | Vector Search | `mcp.vectorsearch` | `vectorsearch.vector-search-indexes` |
 | UC connection | `mcp.external` | `catalog.connections` |
-| Custom MCP server (App-hosted or external) | `apps` | n/a |
+| Custom MCP server (Databricks App-hosted) | `apps` | n/a |
+| Custom MCP server (external, via UC connection) | `mcp.external` | n/a |
 | Databricks App | `apps` | `apps` |
 | Model serving endpoint | n/a | `serving.serving-endpoints` |
 | SQL warehouse | n/a | `sql.warehouses` |

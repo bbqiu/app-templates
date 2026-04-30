@@ -10,6 +10,8 @@
 # Genie space queries. Find them in the Genie space settings → Datasets, then:
 #   GRANT USAGE ON SCHEMA <catalog>.<schema> TO `<sp-application-id>`;
 #   GRANT SELECT ON TABLE <catalog>.<schema>.<table> TO `<sp-application-id>`;
+# Note: <sp-application-id> is the SP's application_id UUID, not its display
+# name. Find it via: `databricks service-principals list --profile <profile>`.
 # In OBO mode (mcp.genie scope), the user's existing UC grants apply — no extra
 # SQL needed.
 

@@ -99,32 +99,37 @@ resources:
 **Step 2:** in `agent_server/agent.py`, swap the SP `WorkspaceClient()` for `get_user_workspace_client()` *inside* the `@invoke`/`@stream` handler (not at module load — the user token is per-request):
 
 ```python
+from contextlib import AsyncExitStack
 from agent_server.utils import get_user_workspace_client
-from databricks_openai.agents import McpServer
+from agent_server.utils.mcp import connect_mcp_servers, init_mcp_server
 
 @invoke()
 async def invoke_handler(request):
     user_wc = get_user_workspace_client()  # per-request, never at startup
-    genie_server = McpServer(
-        url=f"{user_wc.config.host}/api/2.0/mcp/genie/<space-id>",
-        name="genie",
-        workspace_client=user_wc,
-    )
-    # ... agent setup using [genie_server]
+    async with AsyncExitStack() as stack:
+        mcp_servers = await connect_mcp_servers(stack, [
+            lambda: init_mcp_server(
+                url="/api/2.0/mcp/genie/<space-id>",
+                name="genie",
+                workspace_client=user_wc,
+            ),
+        ])
+        # build and run the agent with mcp_servers
 ```
 
-**Scope reference** (from `apps/commons/src/conf/AppsCommonConf.scala`):
+**Scope reference** (from `apps/commons/src/conf/AppsCommonConf.scala`). Pick the row for the path you actually use — MCP routes use `mcp.*`; direct SDK calls use the resource-specific scope:
 
-| Tool | OBO scope |
-|---|---|
-| Genie space (MCP) | `mcp.genie` |
-| UC function (MCP) | `mcp.functions` |
-| Vector Search (MCP) | `mcp.vectorsearch` |
-| UC connection (MCP) | `mcp.external` |
-| Custom MCP server (App-hosted or external) | `apps` |
-| Databricks App | `apps` |
-| Model serving endpoint (direct SDK) | `serving.serving-endpoints` |
-| SQL warehouse (direct SDK) | `sql.warehouses` |
+| Tool | MCP scope | Direct-SDK scope |
+|---|---|---|
+| Genie space | `mcp.genie` | `dashboards.genie` |
+| UC function | `mcp.functions` | n/a |
+| Vector Search | `mcp.vectorsearch` | `vectorsearch.vector-search-indexes` |
+| UC connection | `mcp.external` | `catalog.connections` |
+| Custom MCP server (Databricks App-hosted) | `apps` | n/a |
+| Custom MCP server (external, via UC connection) | `mcp.external` | n/a |
+| Databricks App | `apps` | `apps` |
+| Model serving endpoint | n/a | `serving.serving-endpoints` |
+| SQL warehouse | n/a | `sql.warehouses` |
 
 See: [Databricks Apps user authorization](https://docs.databricks.com/aws/en/generative-ai/agent-framework/agent-authentication?language=Declarative+Automation+Bundles#implement-user-authorization).
 
