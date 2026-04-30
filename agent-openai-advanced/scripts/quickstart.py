@@ -91,6 +91,27 @@ def print_error(text: str) -> None:
     print(f"✗ {text}", file=sys.stderr)
 
 
+def require_tty(prompt_description: str, hint: str) -> None:
+    """Exit with a precise hint if stdin is not a TTY.
+
+    Quickstart has several interactive prompts (profile picker, Lakebase setup,
+    host URL). When run from CI, an agent harness, or with stdin piped, calling
+    `input()` raises EOFError and produces a confusing stack trace. Use this
+    helper to fail fast with an actionable hint that names the CLI flag the
+    user can pass to bypass the prompt.
+
+    Args:
+        prompt_description: Short description of what would be prompted.
+        hint: Concrete hint for the user (e.g. "Pass `--profile <name>`").
+    """
+    if not sys.stdin.isatty():
+        print_error(
+            f"{prompt_description} requires interactive input, but stdin is not a TTY.\n"
+            f"  {hint}"
+        )
+        sys.exit(2)
+
+
 def print_troubleshooting_auth() -> None:
     print("\nTroubleshooting tips:")
     print("  • Ensure you have network connectivity to your Databricks workspace")
@@ -393,6 +414,12 @@ def select_profile_interactive(profiles: list[dict]) -> str:
 
     print()
 
+    require_tty(
+        "Profile selection",
+        "Pass `--profile <name>` to select a profile non-interactively. "
+        f"Available: {', '.join(p['name'] for p in profiles)}",
+    )
+
     while True:
         choice = input("Enter the number of the profile you want to use: ").strip()
         if not choice:
@@ -447,6 +474,11 @@ def setup_databricks_auth(profile_arg: str = None, host_arg: str = None) -> str:
             host = host_arg
             print(f"Using specified host: {host}")
         else:
+            require_tty(
+                "Databricks host URL",
+                "Pass `--host <url>` (e.g. https://your-workspace.cloud.databricks.com) "
+                "or `--profile <name>` to use an existing profile.",
+            )
             host = input(
                 "\nPlease enter your Databricks host URL\n(e.g., https://your-workspace.cloud.databricks.com): "
             ).strip()
@@ -655,6 +687,12 @@ def create_lakebase_instance(profile_name: str) -> dict:
         print_error("Could not connect to Databricks. Check your CLI profile.")
         sys.exit(1)
 
+    require_tty(
+        "New Lakebase project name",
+        "Pass `--skip-lakebase` to skip Lakebase setup, "
+        "`--lakebase-provisioned-name <name>` to use an existing provisioned instance, "
+        "or `--lakebase-autoscaling-endpoint <name>` to use an existing autoscaling endpoint.",
+    )
     name = input("Enter a name for the new Lakebase autoscaling project: ").strip()
     if not name:
         print_error("Instance name is required")
@@ -767,6 +805,13 @@ def select_lakebase_interactive(profile_name: str) -> dict:
     print("  1) Create a new Lakebase instance")
     print("  2) Use an existing Lakebase instance")
     print()
+
+    require_tty(
+        "Lakebase setup",
+        "Pass `--skip-lakebase` to skip Lakebase setup, "
+        "`--lakebase-provisioned-name <name>` to use an existing provisioned instance, "
+        "or `--lakebase-autoscaling-endpoint <name>` to use an existing autoscaling endpoint.",
+    )
 
     while True:
         choice = input("Enter your choice (1 or 2): ").strip()
@@ -1559,6 +1604,8 @@ Examples:
 
         # Step 4: Existing app binding (optional) — do this early so app resources
         # (experiment, lakebase) take precedence over fresh creation.
+        # Skip the prompt entirely when --app-name was passed (it's redundant) or
+        # when stdin is not a TTY (CI / agents — calling input() would EOFError).
         app_name = args.app_name
         if not app_name and sys.stdin.isatty():
             print_step("Optional: Bind to an existing Databricks app")
@@ -1725,6 +1772,19 @@ Examples:
             if existing_lakebase and validate_lakebase_config(profile_name, existing_lakebase):
                 print_step("Reusing existing Lakebase config from .env")
                 lakebase_config = existing_lakebase
+            elif args.app_name:
+                # --app-name was provided but the bound app didn't expose a postgres
+                # resource. Don't prompt — the user has already opted into a specific
+                # app and asking again is redundant. Pass --skip-lakebase explicitly
+                # to silence the hint, or one of the lakebase flags to set it up.
+                print_step("Skipping Lakebase chat-history prompt (--app-name provided)")
+            elif not sys.stdin.isatty():
+                require_tty(
+                    "Optional Lakebase chat-history setup",
+                    "Pass `--skip-lakebase` to skip, "
+                    "`--lakebase-provisioned-name <name>` to use an existing provisioned instance, "
+                    "or `--lakebase-autoscaling-endpoint <name>` to use an existing autoscaling endpoint.",
+                )
             else:
                 print_step("Optional: Set up Lakebase for chat UI")
                 print("The built-in chat UI can save conversation history across sessions")
