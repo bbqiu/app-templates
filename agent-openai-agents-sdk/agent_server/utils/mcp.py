@@ -63,13 +63,16 @@ async def connect_mcp_servers(
     """
     connected: list[McpServer] = []
     for factory in factories:
+        server: McpServer | None = None
         try:
             server = factory()
             entered = await stack.enter_async_context(server)
             connected.append(entered)
         except Exception:
+            identity = getattr(server, "name", None) or "<construction-failed>"
             logger.warning(
-                "MCP server failed to initialize; continuing without it.",
+                "MCP server %r failed to initialize; continuing without it.",
+                identity,
                 exc_info=True,
             )
     return connected
