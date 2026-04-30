@@ -292,7 +292,8 @@ def check_databricks_cli_version() -> str | None:
     return (
         f"Databricks CLI {version_str} is too old (requires v{min_str}+).\n"
         f"  Older CLIs hit Terraform 'openpgp: key expired' on bundle deploy.\n"
-        f"  Upgrade with: {upgrade_cmd}"
+        f"  Upgrade with: {upgrade_cmd}\n"
+        f"  (Windows: install from https://docs.databricks.com/aws/en/dev-tools/cli/install.html)"
     )
 
 
