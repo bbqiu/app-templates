@@ -6,7 +6,6 @@ import litellm
 import mlflow
 from agents import Agent, Runner, function_tool, set_default_openai_api, set_default_openai_client
 from agents.tracing import set_trace_processors
-from databricks.sdk import WorkspaceClient
 from databricks_openai import AsyncDatabricksOpenAI
 from databricks_openai.agents import McpServer
 from mlflow.genai.agent_server import invoke, stream
@@ -17,9 +16,7 @@ from mlflow.types.responses import (
 )
 
 from agent_server.utils import (
-    build_mcp_url,
     get_session_id,
-    get_user_workspace_client,
     process_agent_stream_events,
 )
 
@@ -40,14 +37,6 @@ def get_current_time() -> str:
     return datetime.now().isoformat()
 
 
-async def init_mcp_server(workspace_client: WorkspaceClient):
-    return McpServer(
-        url=build_mcp_url("/api/2.0/mcp/functions/system/ai", workspace_client=workspace_client),
-        name="system.ai UC function MCP server",
-        workspace_client=workspace_client,
-    )
-
-
 def create_agent(mcp_servers: list[McpServer] | None = None) -> Agent:
     return Agent(
         name="Agent",
@@ -62,15 +51,33 @@ def create_agent(mcp_servers: list[McpServer] | None = None) -> Agent:
 async def invoke_handler(request: ResponsesAgentRequest) -> ResponsesAgentResponse:
     if session_id := get_session_id(request):
         mlflow.update_current_trace(metadata={"mlflow.trace.session": session_id})
-    # To use MCP server tools, wrap the code below with this async context manager.
-    # By default, uses service principal credentials via WorkspaceClient().
-    # For on-behalf-of user authentication, use get_user_workspace_client() instead.
-    # try:
-    #     async with await init_mcp_server(WorkspaceClient()) as mcp_server:
-    #         agent = create_agent(mcp_servers=[mcp_server])
-    # except Exception:
-    #     logger.warning("MCP server unavailable. Continuing without MCP tools.", exc_info=True)
-    #     agent = create_agent()
+    # To use MCP server tools, replace the `agent = create_agent()` line below
+    # with the AsyncExitStack pattern. `connect_mcp_servers` skips servers that
+    # fail to initialize (logs the stack trace via `exc_info=True`) so one bad
+    # tool does not poison the rest. By default uses service principal
+    # credentials via WorkspaceClient(); for OBO (per-user) authentication,
+    # swap for `get_user_workspace_client()` inside this handler — see the
+    # `add-tools-openai` skill's "OBO" section.
+    #
+    # from contextlib import AsyncExitStack
+    # from databricks.sdk import WorkspaceClient
+    # from agent_server.utils.mcp import connect_mcp_servers, init_mcp_server
+    #
+    # async with AsyncExitStack() as stack:
+    #     mcp_servers = await connect_mcp_servers(stack, [
+    #         lambda: init_mcp_server(
+    #             url="/api/2.0/mcp/functions/system/ai",
+    #             name="system.ai UC function MCP server",
+    #             workspace_client=WorkspaceClient(),
+    #         ),
+    #         # add more factories here for additional MCP servers
+    #     ])
+    #     agent = create_agent(mcp_servers=mcp_servers)
+    #     messages = [i.model_dump() for i in request.input]
+    #     result = await Runner.run(agent, messages)
+    #     return ResponsesAgentResponse(
+    #         output=[item.to_input_item() for item in result.new_items]
+    #     )
     agent = create_agent()
     messages = [i.model_dump() for i in request.input]
     result = await Runner.run(agent, messages)
@@ -83,15 +90,9 @@ async def stream_handler(
 ) -> AsyncGenerator[ResponsesAgentStreamEvent, None]:
     if session_id := get_session_id(request):
         mlflow.update_current_trace(metadata={"mlflow.trace.session": session_id})
-    # To use MCP server tools, wrap the code below with this async context manager.
-    # By default, uses service principal credentials via WorkspaceClient().
-    # For on-behalf-of user authentication, use get_user_workspace_client() instead.
-    # try:
-    #     async with await init_mcp_server(WorkspaceClient()) as mcp_server:
-    #         agent = create_agent(mcp_servers=[mcp_server])
-    # except Exception:
-    #     logger.warning("MCP server unavailable. Continuing without MCP tools.", exc_info=True)
-    #     agent = create_agent()
+    # To use MCP server tools, replace the `agent = create_agent()` line below
+    # with the AsyncExitStack pattern. See the `invoke_handler` example above
+    # for the full snippet (including OBO swap).
     agent = create_agent()
     messages = [i.model_dump() for i in request.input]
     result = Runner.run_streamed(agent, input=messages)
