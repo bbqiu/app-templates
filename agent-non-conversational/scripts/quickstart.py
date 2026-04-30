@@ -1779,12 +1779,14 @@ Examples:
                 # to silence the hint, or one of the lakebase flags to set it up.
                 print_step("Skipping Lakebase chat-history prompt (--app-name provided)")
             elif not sys.stdin.isatty():
-                require_tty(
-                    "Optional Lakebase chat-history setup",
-                    "Pass `--skip-lakebase` to skip, "
-                    "`--lakebase-provisioned-name <name>` to use an existing provisioned instance, "
-                    "or `--lakebase-autoscaling-endpoint <name>` to use an existing autoscaling endpoint.",
+                # Optional prompt — silently skip on non-TTY (CI/piped) runs.
+                # Users who want chat history can opt in via the lakebase flags.
+                print_step(
+                    "Skipping optional Lakebase chat-history prompt (non-interactive stdin); "
+                    "pass --lakebase-provisioned-name <name> or --lakebase-autoscaling-endpoint <name> "
+                    "to enable it."
                 )
+                # fall through; don't set up Lakebase
             else:
                 print_step("Optional: Set up Lakebase for chat UI")
                 print("The built-in chat UI can save conversation history across sessions")

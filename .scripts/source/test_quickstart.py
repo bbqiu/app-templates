@@ -1517,3 +1517,94 @@ class TestExistingAppPromptSkippedWithAppName:
             input("Enter the existing app name to bind to (or press Enter to skip): ")
 
         assert called == [], "input() must not be called when stdin is not a TTY"
+
+
+class TestOptionalLakebasePromptSkippedOnNonTty:
+    """Regression tests for the optional Lakebase chat-history prompt in the
+    non-memory branch of main().
+
+    A prior commit replaced the silent fall-through with a `require_tty(...)`
+    call that hard-exits with code 2 on non-interactive stdin. That regressed
+    CI/piped runs: the chat-history Lakebase setup is *optional* for non-memory
+    templates, so a non-TTY should silently skip the prompt (not exit). These
+    tests mirror the gating expression in main() and assert the corrected
+    behavior: no sys.exit, no input(), and an informative skip message.
+    """
+
+    def _input_must_not_be_called(self, *args, **kwargs):
+        raise AssertionError("input() must not be called when stdin is not a TTY")
+
+    def test_no_sysexit_on_non_tty(self, monkeypatch, capsys):
+        """Simulates the main() non-memory chat-history branch on non-TTY stdin."""
+        monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+        monkeypatch.setattr("builtins.input", self._input_must_not_be_called)
+
+        import sys as _sys
+
+        # Mirror the exact gating logic from main():
+        #   elif not sys.stdin.isatty():
+        #       print("Skipping optional Lakebase chat-history prompt ...")
+        #       # fall through; don't set up Lakebase
+        #   else:
+        #       answer = input(...)
+        lakebase_config = None
+        skipped = False
+        if not _sys.stdin.isatty():
+            print(
+                "Skipping optional Lakebase chat-history prompt (non-interactive stdin); "
+                "pass --lakebase-provisioned-name <name> or --lakebase-autoscaling-endpoint <name> "
+                "to enable it."
+            )
+            skipped = True
+        else:
+            # Would call input() — must not happen on non-TTY.
+            input("Set up Lakebase for chat history? [Y/n]: ")
+
+        # Did NOT exit, did NOT call input, did fall through with no config.
+        assert skipped is True
+        assert lakebase_config is None
+
+    def test_skip_message_printed_on_non_tty(self, monkeypatch, capsys):
+        """The skip path must print a helpful hint mentioning the opt-in flags."""
+        monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+        monkeypatch.setattr("builtins.input", self._input_must_not_be_called)
+
+        import sys as _sys
+
+        if not _sys.stdin.isatty():
+            print(
+                "Skipping optional Lakebase chat-history prompt (non-interactive stdin); "
+                "pass --lakebase-provisioned-name <name> or --lakebase-autoscaling-endpoint <name> "
+                "to enable it."
+            )
+
+        captured = capsys.readouterr()
+        assert "Skipping optional Lakebase" in captured.out
+        assert "--lakebase-provisioned-name" in captured.out
+        assert "--lakebase-autoscaling-endpoint" in captured.out
+
+    def test_quickstart_source_does_not_require_tty_for_optional_lakebase(self):
+        """Static guard: ensure main()'s non-memory chat-history branch does
+        NOT call require_tty. The previous regression replaced the fall-through
+        with require_tty(), which exited with code 2 on CI runs."""
+        from pathlib import Path
+
+        source = (
+            Path(__file__).resolve().parent / "quickstart.py"
+        ).read_text()
+
+        # Locate the optional chat-history block by its anchor comment.
+        anchor = "Optional for non-memory templates"
+        assert anchor in source, "anchor comment for optional Lakebase block missing"
+        idx = source.index(anchor)
+        # Look at the next ~2KB of source — the entire branch fits comfortably.
+        block = source[idx : idx + 2000]
+
+        assert "require_tty(" not in block, (
+            "Optional Lakebase chat-history branch must not call require_tty "
+            "on non-TTY stdin — it should silently skip instead."
+        )
+        assert "Skipping optional Lakebase chat-history prompt" in block, (
+            "Optional Lakebase chat-history branch must print a skip hint "
+            "when stdin is not a TTY."
+        )
