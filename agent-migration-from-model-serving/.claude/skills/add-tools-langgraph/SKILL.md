@@ -32,7 +32,7 @@ tools = await mcp_client.get_tools()
 ```yaml
 resources:
   apps:
-    agent_langgraph:
+    agent_migration:
       resources:
         - name: 'my_genie_space'
           genie_space:
@@ -44,7 +44,7 @@ resources:
 **Step 3:** Deploy and run:
 ```bash
 databricks bundle deploy
-databricks bundle run agent_langgraph  # Required to start app with new code!
+databricks bundle run agent_migration  # Required to start app with new code!
 ```
 
 See **deploy** skill for more details.
@@ -74,7 +74,7 @@ Declare the target app as an `app` resource in `databricks.yml` — the bundle g
 ```yaml
 resources:
   apps:
-    agent_langgraph:
+    agent_migration:
       resources:
         - name: 'mcp_server'
           app:
